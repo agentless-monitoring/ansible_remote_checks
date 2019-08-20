@@ -5,7 +5,7 @@ Design goals:
 
  - Enable Icinga to execute agentless checks for linux machines
 
-
+<pre>
 
     +-------------------------------------+
     |   Icinga Server                     |
@@ -43,8 +43,9 @@ Design goals:
     |   +-----------------------------+   |  5. Send module results  +--------------------------+
     +-------------------------------------+
 
+</pre>
 
-#Commands 
+# Commands 
 
 ```
 object CheckCommand "service-linux" {
