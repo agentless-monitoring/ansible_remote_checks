@@ -1,0 +1,203 @@
+#!/usr/bin/python2
+
+import math
+import sys
+import argparse
+from ansible_remote_checks.runner import Runner
+import json
+import re
+
+def handle_unknown(message):                                                                                                                                                              
+  print("UNKNOWN - %s" % (message))                                                                                                                                                       
+  sys.exit(3) 
+
+if __name__ == '__main__':
+  parser = argparse.ArgumentParser(description='Linux HP Service Guard check')
+  parser.add_argument('-H', '--host', help="Hostname to check", type=str, required=True)
+  parser.add_argument('-U', '--user', help='Ansible User', type=str, required=False)
+  parser.add_argument('-K', '--keyfile', help='Path to private key file', type=str, required=False)
+  parser.add_argument('-C', '--cluster', help='Cluster Name', type=str, required=False)
+  parser.add_argument('-N', '--node', help='Node Name', type=str, required=False)
+  parser.add_argument('-P', '--package_regex', help='Package Name', type=str, required=False)
+  
+  args = parser.parse_args()
+
+  host = args.host
+
+  sg_cluster = args.cluster
+  sg_node = args.node
+  sg_package = args.package_regex
+
+  if not sg_cluster and not sg_node and not sg_package:
+    handle_unknown("No parameter given")
+  
+  if args.user != None and args.keyfile != None:
+    runner_args = (host, args.user, args.keyfile)
+  elif args.user != None:
+    runner_args = (host, args.user)
+  elif args.keyfile != None:
+    runner_args = (host, 'icinga-check', args.keyfile)
+  else:
+    runner_args = (host, 'icinga-check')  
+  
+  try:
+    runner = Runner(*runner_args)
+    result = runner.run_play('check_sg')
+  
+  except Exception as ex:
+    handle_unknown(str(ex))
+
+  status = result.get('ansible_status', '')
+  if status != 'ok':
+    handle_unknown(result)
+
+  hostinfo = result.get(host)
+  sg_info = hostinfo.get("sg_info")
+    
+  if not sg_info or not sg_info.get('output'):
+    handle_unknown("No data available")
+
+  ret_status = 0 
+  output = sg_info.get('output')
+
+  details = {}
+  details['packages_down'] = []
+  details['packages_up'] = []
+  details['packages_warning'] = []
+  details['nodes'] = {}
+
+  if sg_cluster:
+    cluster = output.get('cluster') 
+    ret_status = 2
+    status = "CRITICAL"
+      
+    if not cluster or not cluster.get('name') == sg_cluster:
+      output_message = "Service Guard Cluster %s - information for %s not found" % (status, sg_cluster)
+    elif not cluster.get('status') == 'up':
+      output_message = "Service Guard Cluster %s - Cluster not in state up" % (status)
+    else: 
+      ret_status = 0
+      status = "OK"
+      name = cluster.get('name')
+      coordinator = cluster.get('coordinator')
+      sg_status = cluster.get('status')
+      state = cluster.get('state', 'unknown state')      
+      output_message = "Service Guard Cluster %s - Cluster %s with primary node %s in status %s (%s)" % (status, name, coordinator, sg_status, state)
+                                                                                                                                                             
+  elif sg_package:
+    packages = output.get('packages')
+    
+    if not packages: 
+      output_message = "Service Guard Package %s - information for packages not found" % (status)
+      ret_status = 2
+      status = "CRITICAL"
+
+    package_regex = r"%s" % (sg_package)
+
+    for key in packages.keys():
+      match = re.match(package_regex, key)
+           
+      if match:
+        package = packages.get(key)
+        name = package.get('name') 
+        sg_status = package.get('status')
+        state = package.get('state', 'state unknown')
+
+        if not sg_status == 'up' and not state == 'maintenance':
+          ret_status = 2 
+          status = "CRITICAL"
+          details['packages_down'].append("%s for %s - Package in service guard status %s" % (status, name, sg_status))
+        else:
+          if ret_status not in [1,2]:
+            ret_status = 0      
+         
+          status = "OK"
+
+          sg_status = package.get('status')                                                                                                          
+          owner = package.get('owner')
+          autorun = "autorun %s" % package.get('autorun','not configured')
+
+          if autorun != 'autorun enabled' or state == 'maintenance':
+            if ret_status != 2:
+              ret_status = 1
+
+            status = 'WARNING'
+            details['packages_warning'].append("%s for %s - Package in service guard status %s (%s) with owner %s and %s" % (status, name,  sg_status, state, owner, autorun))
+            continue
+          #also available would be style, type
+          details['packages_up'].append("%s for %s - Package in service guard status %s (%s) with owner %s and %s" % (status, name,  sg_status, state, owner, autorun))
+        
+        #package per node    
+        if sg_node:
+          package_node = package.get(sg_node)
+         
+          if not details['nodes'].get(sg_node):
+            details['nodes'][sg_node] = []
+         
+          #check if node is configured
+          if not package_node: 
+            ret_status = 2
+            status = "CRITICAL"
+          elif package_node.get('switching') != 'enabled':
+            if ret_status != 2: 
+              ret_status = 1
+              status = 'WARNING'
+          else: 
+            sg_status = package_node.get('status')
+            state = package_node.get('state', 'state unknown')
+            switching = "switching %s" % (package_node.get('switching', 'not configured'))
+            #also available: last_run_time, last_halt_time, last_halt_failed, type, order
+            details['nodes'][sg_node].append("%s with service guard status %s (%s) and %s" % (name, sg_status, state, switching))
+
+    if ret_status == 0:
+      status = 'OK'
+    elif ret_status == 1:
+      status = 'WARNING'
+    elif ret_status == 2:
+      status = 'CRITICAL'
+    else:
+      status = 'UNKNOWN'
+
+    output_message = "Service Guard Package %s - %s package(s) down, %s packages in warning state" % (status, len(details['packages_down']), len(details['packages_warning']))
+  
+  elif sg_node:
+    nodes = output.get('nodes')
+
+    if not nodes or not nodes.get(sg_node):
+      output_message =  "Service Guard Node %s - information for nodes not found" % (status)
+      ret_status = 2
+      status = "CRITICAL"
+    else:
+      node = nodes.get(sg_node)
+      if ret_status not in [1,2]: 
+        ret_status = 0
+
+      status = "OK"
+      name = node.get('name')
+      sg_status = node.get('status')
+      state = node.get('state', 'state unknwon') 
+   
+      if sg_status and not sg_status == 'up':
+        status = 'CRITICAL'
+        ret_status = 2
+ 
+      output_message = "Service Guard Node %s - Node %s in status %s (%s)" % (status, name, sg_status, state)
+         
+  print(output_message)
+
+  for message in details['packages_down']:
+    print(message)
+
+  for message in details['packages_warning']:
+    print(message)
+
+  for message in details['packages_up']:
+    print(message)
+
+  for node in details['nodes']:
+    print("\nDetails for packages running on node %s:\n" % node)
+    node = details['nodes'][node]
+    for node_package in node:
+      print(node_package)
+
+  sys.exit(ret_status)

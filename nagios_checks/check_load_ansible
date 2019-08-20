@@ -1,0 +1,82 @@
+#!/usr/bin/python2
+
+import sys 
+import argparse
+from ansible_remote_checks.runner import Runner
+
+def handle_unknown(message):                                                                                                                                                              
+  print("UNKNOWN - %s" % (message))                                                                                                                                                       
+  sys.exit(3) 
+
+if __name__ == '__main__':
+
+  parser = argparse.ArgumentParser(description='Linux load check')
+  parser.add_argument('-H', '--host', help="API Host", type=str, required=True)
+  parser.add_argument('-W', '--warning', help='Warning level (default: 3)', type=int, default=3)
+  parser.add_argument('-C', '--critical', help='Critical level (default: 5)', type=int, default=5)
+  parser.add_argument('-U', '--user', help='Ansible User', type=str, required=False)
+  parser.add_argument('-K', '--keyfile', help='Path to private key file', type=str, required=False)
+
+  args = parser.parse_args()
+
+  host = args.host
+  warning = args.warning
+  critical = args.critical
+   
+  if args.user != None and args.keyfile != None:
+    runner_args = (host, args.user, args.keyfile)
+  elif args.user != None:
+    runner_args = (host, args.user)
+  elif args.keyfile != None:
+    runner_args = (host, 'icinga-check', args.keyfile)
+  else:
+    runner_args = (host, 'icinga-check')  
+  
+  try:
+    runner = Runner(*runner_args)
+    result = runner.run_play('check_load')
+  
+  except Exception as ex:
+    handle_unknown(str(ex))
+
+  status = result.get('ansible_status', '')
+  if status != 'ok':
+    handle_unknown(result)
+  
+  load = result.get(host).get("loadinfo")
+
+  if not load:
+    handle_unknown("No data available")
+ 
+  last_min = load.get("1min")
+  last_five = load.get("5min")
+  last_fifteen = load.get("15min")
+  cores = load.get("cpu_cores")
+
+  avg_last_min = float(last_min) / int(cores)
+  avg_procs_waiting = float(last_five) / int(cores)
+  avg_last_fifteen = float(last_fifteen) / int(cores)
+ 
+  #Determine status
+  if avg_procs_waiting >= critical:
+    status = "CRITICAL"
+    ret_status = 2
+  elif avg_procs_waiting >= warning:
+    status = "WARNING"
+    ret_status = 1
+  else:
+    status = "OK"
+    ret_status = 0
+  
+  if ret_status < 3:  
+    # Build huma readable message
+    message = "Average waiting processes per cpu core: 1 minute %s , 5 minutes %s , 15 minutes %s" % (avg_last_min, avg_procs_waiting, avg_last_fifteen)
+ 
+    # Build  perf data 
+    perfdata = "procs_per_cpu_1min=%s;;;0; procs_per_cpu_5min=%s;%s;%s;0; procs_per_cpu_15min=%s;;;0;" % (avg_last_min, avg_procs_waiting, warning, critical, avg_last_fifteen)
+
+    output_message = 'LOAD %s - %s | %s' % (status, message, perfdata)
+ 
+  print(output_message)
+  sys.exit(ret_status)
+               

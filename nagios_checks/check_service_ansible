@@ -1,0 +1,96 @@
+#!/usr/bin/python2
+
+import sys
+import argparse
+from ansible_remote_checks.runner import Runner
+
+def handle_unknown(message):                                                                                                                                                              
+  print("UNKNOWN - %s" % (message))                                                                                                                                                       
+  sys.exit(3) 
+
+if __name__ == '__main__':
+  parser = argparse.ArgumentParser(description='Linux Service checker')
+  parser.add_argument('-H', '--host', help="Hostname to check", type=str, required=True)
+  parser.add_argument('-S', '--servicename', help="Servicename", type=str, required=False)
+  parser.add_argument('-U', '--user', help='Ansible User', type=str, required=False)
+  parser.add_argument('-K', '--keyfile', help='Path to private key file', type=str, required=False)
+
+  args = parser.parse_args()
+
+  host = args.host
+  servicename = args.servicename
+ 
+  if args.user != None and args.keyfile != None:
+    runner_args = (host, args.user, args.keyfile)
+  elif args.user != None:
+    runner_args = (host, args.user)
+  elif args.keyfile != None:
+    runner_args = (host, 'icinga-check', args.keyfile)
+  else:
+    runner_args = (host, 'icinga-check')   
+  
+  try:
+    arguments = {'servname': servicename}
+    runner = Runner(*runner_args)
+    result = runner.run_play('check_serv', arguments)
+  
+  except Exception as ex:
+    handle_unknown(str(ex))
+
+  status = result.get('ansible_status', '')
+  if status != 'ok':
+    handle_unknown(result)
+
+  hostinfo = result.get(host)
+  serviceinfo = hostinfo.get("serviceinfo")
+ 
+  ret_status = 0
+  status = "OK"
+  
+  # if service was specified but no info for failed service was gathered
+  if servicename and not serviceinfo:
+    print("Service OK - No service in failed state") 
+    sys.exit(ret_status) 
+
+  services = {}
+  current_status = "OK"
+
+  for servicename in serviceinfo:
+    service = serviceinfo.get(servicename)
+    service_status = service.get('status')
+    service_message = service.get('message')
+
+    if not services.get(service_message[0]):
+      services[service_message[0]]= []
+         
+    if service_status == 3:
+      ret_status = 2
+      status = "CRITICAL"
+      current_status = status
+    elif service_status > 0:
+      current_status = "WARNING"
+      if ret_status != 2:
+        ret_status = 1
+        status = "WARNING"   
+
+    services[service_message[0]].append("%s for service %s - service in state %s" % (current_status, servicename, service_message[0]))
+   
+  human_message = ""
+  for key, value in services.iteritems():
+    if human_message:
+      human_message = human_message + ", "
+   
+    human_message = human_message + "%s service(s) in state %s" % (len(value), key)
+
+  if human_message: 
+    output_message = "Service %s - %s" % (status, human_message)
+    print(output_message)
+  else:
+    print("Service %s" % status)
+
+  for key, value in services.iteritems():
+    for service_message in value:
+      print(service_message)
+  
+  sys.exit(ret_status)
+

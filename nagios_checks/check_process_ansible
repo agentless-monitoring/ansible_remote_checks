@@ -1,0 +1,144 @@
+#!/usr/bin/python2
+
+import sys 
+import argparse
+from ansible_remote_checks.runner import Runner
+from enum import Enum
+import re
+
+def handle_unknown(message):                                                                                                                                                              
+  print("UNKNOWN - %s" % (message))                                                                                                                                                       
+  sys.exit(3) 
+
+class CompareMode(Enum):
+    EQ = 'eq'
+    LT = 'lt'
+    GT = 'gt'
+
+    def __str__(self):
+        return self.value
+
+def check_positive(value):
+  ivalue = int(value)
+  if ivalue <= 0:
+    raise argparse.ArgumentTypeError("count %s is not a positive number" % value)
+  return ivalue
+
+def handle_not_enough(not_running_string, count_matching):
+  if count_matching == 0:
+    return "%s - %s | number_processes=%d;;;0;\n" % (not_running_string, "No process running", count_matching)
+  else:
+    return "%s - %s | number_processes=%d;;;0;\n" % (not_running_string, "Not enough processes running", count_matching)
+
+def handle_too_many(not_running_string, count_matching):
+  return "%s - %s | number_processes=%d;;;0;\n" % (not_running_string, "Too many processes running", count_matching)
+
+def handle_ok(count_matching):
+  if count_matching > 1:
+    return "OK - %d processes running | number_processes=%d;;;0;\n" % (count_matching, count_matching)
+  else:
+    return "OK - Running | number_processes=%d;;;0;\n" % (count_matching)
+
+if __name__ == '__main__':
+
+  parser = argparse.ArgumentParser(description='check-runner')
+  parser.add_argument('-H', '--host', help="API Host", type=str, required=True)
+  parser.add_argument('-U', '--user', help='Ansible User', type=str, required=False)
+  parser.add_argument('-K', '--keyfile', help='Path to private key file', type=str, required=False)
+  parser.add_argument('-p', '--process', help="Process Name to check", type=str, required=True)
+  parser.add_argument('-r', '--cmdline-regex', help="Regular Expression to run against cmdline", type=str)
+  parser.add_argument('-m', '--compare-mode', help="Compare mode to decide how count is evaluated (default eq)", type=CompareMode, default=CompareMode.EQ, choices=list(CompareMode))
+  parser.add_argument('-C', '--count', help="Count of matching processes allowed running", type=check_positive, default=1)
+  parser.add_argument('-w', '--is-warning', help="Not running is a Warning not a Critical state", action='store_true', default=False)
+  parser.add_argument('-d', '--debug', help="enable debug print", action='store_true')
+
+  args = parser.parse_args()
+
+  host = args.host
+  process = args.process
+  cmdline = args.cmdline_regex
+  count = args.count
+  mode = args.compare_mode
+
+  if args.is_warning:
+    not_running_status = 1
+    not_running_string = "WARNING"
+  else:
+    not_running_status = 2
+    not_running_string = "CRITICAL"
+ 
+  if args.user != None and args.keyfile != None:
+    runner_args = (host, args.user, args.keyfile)
+  elif args.user != None:
+    runner_args = (host, args.user)
+  elif args.keyfile != None:
+    runner_args = (host, 'icinga-check', args.keyfile)
+  else:
+    runner_args = (host, 'icinga-check')
+ 
+  try:
+    runner = Runner(*runner_args)
+    arguments = {'process': process, 'cmdline' : cmdline}
+    result = runner.run_play('check_process', arguments) 
+
+  except Exception as ex:
+    handle_unknown(str(ex))
+
+  status = result.get('ansible_status', '')
+  if status != 'ok':
+    handle_unknown(result)
+  
+  procs = result.get(host).get("procs")
+
+  if not procs:
+    handle_unknown("No data available")
+ 
+  output = ""
+  ret_status = 0
+  matching = procs.get("processes")
+  
+  if args.debug:
+    print(matching)
+ 
+  count_matching = len(matching)
+
+  if mode == CompareMode.GT:
+    if count_matching <= count:
+      ret_status = not_running_status
+      output = handle_not_enough(not_running_string, count_matching)
+    else:
+      output = handle_ok(count_matching) 
+
+  elif mode == CompareMode.LT:
+    if count_matching >= count:
+      ret_status = not_running_status
+      output = handle_too_many(not_running_string, count_matching)
+    else:
+      output = handle_ok(count_matching) 
+
+  else:
+    if count_matching < count:
+      ret_status = not_running_status
+      output = handle_not_enough(not_running_string, count_matching)
+    elif count_matching > count:
+      ret_status = not_running_status
+      output = handle_too_many(not_running_string, count_matching)
+    else:
+      output = handle_ok(count_matching)
+
+  print(output)
+
+  if len(matching) > 0:
+    print("Running:\n")
+
+  for proc in matching:
+    columns = proc.split()
+    cmdline = ' '.join(columns[2:])
+     
+    #cut cmdline for  output
+    if cmdline > 50 and ret_status == 0:
+      cmdline = "%s [...]" % cmdline[:50]
+
+    print ("%s(%s): %s" % (columns[0], columns[1], cmdline) )
+  
+  sys.exit(ret_status)

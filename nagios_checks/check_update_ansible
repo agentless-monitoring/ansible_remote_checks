@@ -1,0 +1,79 @@
+#!/usr/bin/python2
+
+import math
+import sys
+import argparse
+from ansible_remote_checks.runner import Runner
+
+def handle_unknown(message):                                                                                                                                                              
+  print("UNKNOWN - %s" % (message))                                                                                                                                                       
+  sys.exit(3) 
+
+if __name__ == '__main__':
+  parser = argparse.ArgumentParser(description='Linux Updatee checker')
+  parser.add_argument('-H', '--host', help="Hostname to check", type=str, required=True)
+  parser.add_argument('-W', '--warning', help='Warning level (default: 3)', type=int, default=3)
+  parser.add_argument('-U', '--user', help='Ansible User', type=str, required=False)
+  parser.add_argument('-K', '--keyfile', help='Path to private key file', type=str, required=False)
+
+  args = parser.parse_args()
+  host = args.host
+  warning = args.warning
+   
+  if args.user != None and args.keyfile != None:
+    runner_args = (host, args.user, args.keyfile)
+  elif args.user != None:
+    runner_args = (host, args.user)
+  elif args.keyfile != None:
+    runner_args = (host, 'icinga-check', args.keyfile)
+  else:
+    runner_args = (host, 'icinga-check')
+
+  try:
+    runner = Runner(*runner_args)
+    result = runner.run_play('check_yum_update', dict())
+  
+  except Exception as ex:
+    handle_unknown(str(ex))
+
+  status = result.get('ansible_status', '')
+  if status != 'ok':
+    handle_unknown(result) 
+
+  hostinfo = result.get(host)
+  updateinfo = hostinfo.get("updateinfo")
+
+  ret_status = 0
+  status = "OK"
+  
+  if not updateinfo:
+    print("Update OK - No pending updates") 
+    sys.exit(ret_status) 
+
+  #group updates according to channels
+  grouped_updates = {}
+  update_count = 0
+  for update_nr in updateinfo:
+    update = updateinfo.get(update_nr)
+    if len(update) == 3:
+      update_count += 1
+      name = update[0]
+      version = update[1]
+      channel = update[2]
+      if not grouped_updates.get(channel):
+        grouped_updates[channel] = []  
+      grouped_updates[channel].append([name, version])
+      
+  if update_count >= warning:
+    if ret_status != 2:
+      ret_status = 1
+      status = "WARNING"   
+
+  output_message = "Update %s - There are in total %s Updates waiting to be installed:\n" % (status, update_count)
+  print(output_message)
+  
+  for group in grouped_updates:
+    print("%s Update(s) found in channel %s\n" % (len(grouped_updates[group]), group))
+  
+  sys.exit(ret_status)
+ 

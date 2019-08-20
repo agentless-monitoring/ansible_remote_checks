@@ -1,0 +1,87 @@
+#!/usr/bin/python2
+
+import sys 
+import argparse
+from ansible_remote_checks.runner import Runner
+
+def handle_unknown(message):
+  print("UNKNOWN - %s" % (message))    
+  sys.exit(3)
+
+if __name__ == '__main__':
+
+  parser = argparse.ArgumentParser(description='check-cpu')
+  parser.add_argument('-H', '--host', help="API Host", type=str, required=True)
+  parser.add_argument('-W', '--warning', help='Warning level (default: 70) in %%', type=int, default=70)
+  parser.add_argument('-C', '--critical', help='Critical level (default: 90) in %%', type=int, default=90)
+  parser.add_argument('-U', '--user', help='Ansible User', type=str, required=False)
+  parser.add_argument('-K', '--keyfile', help='Path to private key file', type=str, required=False)
+
+  args = parser.parse_args()
+
+  host = args.host
+  warning = args.warning
+  critical = args.critical
+ 
+  if args.user != None and args.keyfile != None:
+    runner_args = (host, args.user, args.keyfile)
+  elif args.user != None:
+    runner_args = (host, args.user)
+  elif args.keyfile != None:
+    runner_args = (host, 'icinga-check', args.keyfile)
+  else:
+    runner_args = (host, 'icinga-check')
+
+  try:
+    runner = Runner(*runner_args)
+    result = runner.run_play('check_cpu')
+
+  except Exception as ex:
+    handle_unknown(str(ex)) 
+
+  status = result.get('ansible_status', '')
+  if status != 'ok':
+    handle_unknown(result)
+ 
+  cpu_used = result.get(host).get("cpu_used")
+
+  if not cpu_used:
+    handle_unknown("No data available")
+ 
+  user = cpu_used.get("user")
+  nice = cpu_used.get("nice")
+  system = cpu_used.get("sys")
+  idle = cpu_used.get("idle")
+  used = cpu_used.get("used")
+  processes = cpu_used.get("processes")
+ 
+  #Determine status
+  if used >= critical:
+    status = "CRITICAL"
+    ret_status = 2
+  elif used >= warning:
+    status = "WARNING"
+    ret_status = 1
+  else:
+    status = "OK"
+    ret_status = 0
+  
+  if ret_status < 3:  
+    # Build human readable message
+    message = "Used CPU: %s%%" % (used)
+ 
+    # Build  perf data 
+    perfdata = "used=%s%s;%s;%s;0;100" % (used, '%', warning, critical)
+
+    output_message = 'CPU %s - %s | %s' % (status, message, perfdata)
+ 
+  print(output_message)
+
+  # In case of warning and critical print the top most processes
+  if ret_status in [1, 2]:
+    for proc in processes:
+      cols = proc.split()
+      print("Process: %s - %s%% (PID %s: %s)" % (cols[0], cols[1], cols[2], cols[3]))
+  
+  sys.exit(ret_status)
+             

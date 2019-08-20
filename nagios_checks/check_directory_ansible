@@ -1,0 +1,123 @@
+#!/usr/bin/python2
+
+import sys
+import argparse
+from enum import Enum
+from ansible_remote_checks.runner import Runner
+
+def handle_unknown(message):                                                                                                                                                              
+  print("UNKNOWN - %s" % (message))                                                                                                                                                       
+  sys.exit(3) 
+
+class CompareMode(Enum):
+  EQ = 'eq'
+  LT = 'lt'
+  GT = 'gt'
+
+  def __str__(self):
+    return self.value
+
+def create_output(state, message, count_matching, subject='Directory'):
+  return "%s for %s - %s (Filecount %s) | number_files=%d;;;0;\n" % (state, subject,  message, count_matching, count_matching)
+
+if __name__ == '__main__':
+  parser = argparse.ArgumentParser(description='Linux File checker')
+  parser.add_argument('-H', '--host', help="Hostname to check", type=str, required=True)
+  parser.add_argument('-U', '--user', help='Ansible User', type=str, required=False)
+  parser.add_argument('-K', '--keyfile', help='Path to private key file', type=str, required=False)
+  parser.add_argument('-c', '--count', help="Count", type=int, required=True)
+  parser.add_argument('-p', '--path', help="Directory path", type=str, required=True)
+  parser.add_argument('-M', '--mode', help="Compare mode to decide how count is evaluated (default eq)", type=CompareMode, default=CompareMode.EQ, choices=list(CompareMode))
+  parser.add_argument('-R', '--regex', help="Regex for names", type=str, default='.*')
+  parser.add_argument('-r', '--recursive', help="Recursive search in directories", action='store_true')
+  
+  args = parser.parse_args()
+ 
+  path = args.path
+  regex = args.regex
+  mode = args.mode
+  count = args.count
+  recursive = args.recursive
+
+  if path.count(":\\") > 0 and not path.count("\\\\"):
+    path = path.replace("\\", "\\\\")
+
+  host = args.host
+
+  if args.user != None and args.keyfile != None:
+    runner_args = (host, args.user, args.keyfile)
+  elif args.user != None:
+    runner_args = (host, args.user)
+  elif args.keyfile != None:
+    runner_args = (host, 'icinga-check', args.keyfile)
+  else:
+    runner_args = (host, 'icinga-check')    
+  
+  try:
+    arguments = {'path': path, 'regex': regex, 'recursive': recursive}
+    runner = Runner(*runner_args)         
+    result=runner.run_play('check_directory', arguments) 
+
+  except Exception as ex:
+    handle_unknown(str(ex))
+
+  status = result.get('ansible_status', '')
+  if status != 'ok':
+    handle_unknown(result)
+ 
+  ret_status = 0 
+  message = ""
+  states = ['OK','WARNING','CRITICAL','UNKNOWN']
+  not_enough = "Not enough files found"
+  too_many = "Too many files found"
+  subject = 'Directory %s' % path
+  fileinfo = result.get(host).get("fileinfo")
+  count_matching = len(fileinfo)
+
+  #Either not enough or ok
+  if mode == CompareMode.GT:
+    if count_matching <= count:
+      ret_status = 2
+      message = not_enough
+      output =  create_output(states[2], message, count_matching, subject)
+
+    else:
+     output = create_output(states[0], message, count_matching, subject)
+
+  #Either too many or ok
+  elif mode == CompareMode.LT:
+    if count_matching >= count:
+      ret_status = 2
+      message = too_many
+      output = create_output(states[2], message, count_matching, subject)
+
+    else:
+      output = create_output(states[0], message, count_matching, subject)
+
+  #Either not_enough or too_may or ok
+  else:
+    if count_matching < count:
+      ret_status = 2      
+      message = not_enough
+      output = create_output(states[2], message, count_matching, subject)
+
+    elif count_matching > count:
+      ret_status = 2
+      message = too_many
+      output = create_output(states[2], message, count_matching,subject)
+
+    else:
+      output = create_output(states[0], message, count_matching, subject)
+
+  print(output)
+
+  if ret_status == 2:
+    print("Files:\n")
+    for info in fileinfo[:10]:
+      print(info.get('name'))
+
+    if len(fileinfo) > 9:
+      print('[...]')
+
+  sys.exit(ret_status)
+

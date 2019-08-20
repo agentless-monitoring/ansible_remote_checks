@@ -1,0 +1,86 @@
+#!/usr/bin/python2
+
+import math
+import sys
+import argparse
+from datetime import datetime, timedelta
+from ansible_remote_checks.runner import Runner
+
+def handle_unknown(message):                                                                                                                                                              
+  print("UNKNOWN - %s" % (message))                                                                                                                                                       
+  sys.exit(3) 
+
+if __name__ == '__main__':
+  parser = argparse.ArgumentParser(description='Linux File checker')
+  parser.add_argument('-H', '--host', help="Hostname to check", type=str, required=True)
+  parser.add_argument('-m', '--minutes', help="Last modified critical bound", type=int, required=False)
+  parser.add_argument('-f', '--filename', help="File to check against", type=str, required=True)
+  parser.add_argument('-w', '--is-warning', help="Error is a Warning not a Critical state", action='store_true', default=False)
+  parser.add_argument('-U', '--user', help='Ansible User', type=str, required=False)
+  parser.add_argument('-K', '--keyfile', help='Path to private key file', type=str, required=False)
+
+  args = parser.parse_args()
+
+  if args.filename.count(":\\") > 0 and not args.filename.count("\\\\"):
+    filename = args.filename.replace("\\", "\\\\")
+  else:
+    filename = args.filename
+
+  host = args.host
+
+  if args.user != None and args.keyfile != None:
+    runner_args = (host, args.user, args.keyfile)
+  elif args.user != None:
+    runner_args = (host, args.user)
+  elif args.keyfile != None:
+    runner_args = (host, 'icinga-check', args.keyfile)
+  else:
+    runner_args = (host, 'icinga-check')    
+  
+  try:
+    arguments = {'filepath': filename}
+    runner = Runner(*runner_args)         
+    result=runner.run_play('check_file', arguments) 
+
+  except Exception as ex:
+    handle_unknown(str(ex))
+
+  status = result.get('ansible_status', '')
+  if status != 'ok':
+    handle_unknown(result)
+  
+  fileinfo = result.get(host).get("fileinfo")
+  status = fileinfo.get('status')
+
+  if status == 1:
+    print("FILE CRITICAL - File doesn't exist (%s)" % (filename))
+    sys.exit(2)
+
+  last_modified = datetime.fromtimestamp(fileinfo.get('st_mtime'))
+  file_size = fileinfo.get('st_size')
+
+  perfdata = "'file_%s'=%ib" % (args.filename, file_size)
+
+  if args.minutes == None:
+    print("FILE OK - File exists | %s" % (perfdata))
+    sys.exit(0)
+
+  ret_status = 0
+  
+  now_utc=datetime.now()
+  time_diff=now_utc - last_modified
+  compare_to=timedelta(minutes=args.minutes)
+
+  if time_diff > compare_to:
+    if args.is_warning:
+      ret_status=1
+      ret_type = "WARNING"
+    else:
+      ret_status=2
+      ret_type = "CRITICAL"
+    status="FILEAGE %s - Last modified: %s (%s ago)" % (ret_type, last_modified, time_diff)
+  else:
+    status="FILEAGE OK - Last modified: %s (%s ago)" % (last_modified, time_diff)
+  print("%s | %s" % (status, perfdata))
+
+  sys.exit(ret_status)

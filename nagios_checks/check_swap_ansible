@@ -1,0 +1,116 @@
+#!/usr/bin/python2
+import math
+import sys 
+import argparse
+from ansible_remote_checks.runner import Runner
+
+def handle_unknown(message):                                                                                                                                                              
+  print("UNKNOWN - %s" % (message))                                                                                                                                                       
+  sys.exit(3) 
+
+class ResultObject(object):
+  def __init__(self, drive):
+    self.drive = drive
+  def __str__(self):
+    return str(self.drive)
+  def __repr__(self):
+    return self.__str__()
+  def __lt__(self, other):
+    if self.crit < other.crit:
+      return False
+    elif self.crit == other.crit and self.free_space >= other.free_space:
+      return False
+    else:
+      return True
+
+if __name__ == '__main__':
+
+  parser = argparse.ArgumentParser(description='check swap')
+  parser.add_argument('-H', '--host', help="API Host", type=str, required=True)
+  parser.add_argument('-W', '--warning', help='Warning level (default: 70) in %%', type=int, default=70)
+  parser.add_argument('-C', '--critical', help='Critical level (default: 90) in %%', type=int, default=90)
+  parser.add_argument('-U', '--user', help='Ansible User', type=str, required=False)
+  parser.add_argument('-K', '--keyfile', help='Path to private key file', type=str, required=False)
+
+  args = parser.parse_args()
+
+  host = args.host
+  warning = args.warning
+  critical = args.critical
+
+  if args.user != None and args.keyfile != None:
+    runner_args = (host, args.user, args.keyfile)
+  elif args.user != None:
+    runner_args = (host, args.user)
+  elif args.keyfile != None:
+    runner_args = (host, 'icinga-check', args.keyfile)
+  else:
+   runner_args = (host, 'icinga-check') 
+  
+  try:
+    runner = Runner(*runner_args)
+    arguments = {'swap': True}
+    result=runner.run_play('check_memory', arguments)
+  except Exception as ex:
+    handle_unknown(str(ex))
+
+  status = result.get('ansible_status', '')
+  if status != 'ok':
+    handle_unknown(result)
+  
+  meminfo = result.get(host).get("meminfo")
+
+  if not meminfo:
+    handle_unknown("No data available")
+     
+  ret_status = 0
+  results = []
+ 
+  display_subject = "SWAP"
+  result = ResultObject("Swap")
+  swapTotal = int(meminfo.get("SwapTotal"))
+  swapFree = int(meminfo.get("SwapFree"))
+  used_swap = swapTotal - swapFree
+
+  # no swap configured
+  if swapTotal == 0:
+    handle_unknown("No swap available")
+
+  warn_swap = math.ceil((args.warning/100.0)*swapTotal)
+  crit_swap = math.ceil((args.critical/100.0)*swapTotal)  
+
+  result.free_space = swapFree
+  percentage_free = (swapFree/float(swapTotal))*100
+
+  #Determine status
+  if used_swap >= crit_swap:
+    status = "CRITICAL"
+    ret_status = 2
+    result.crit = 2
+  elif used_swap >= warn_swap:
+    status = "WARNING"
+    if ret_status != 2:
+      ret_status = 1
+      result.crit = 1
+  else:
+    status = "OK"
+    result.crit=0
+
+  message = "%s %s - %.2f%% free" % (display_subject, status, percentage_free)
+  result.msg_out = message
+
+  # Build perf data 
+  perfdata = "swap=%s%s;%s;%s;0;%s" % (used_swap, 'KB', warn_swap, crit_swap, swapFree)
+  result.perf_out = perfdata
+
+  results.append(result)
+
+  sort_results = sorted(results)
+  if len(sort_results) > 1:
+    perfs=map(lambda x: x.perf_out, sort_results)
+    msgs=map(lambda x: x.msg_out, sort_results)
+    print("%s | %s\n%s" % (msgs[0], reduce(lambda x1, x2: x1+" "+x2, perfs), reduce(lambda x1, x2: x1+"\n"+x2, msgs[1:])))
+  else:
+    print("%s | %s" % (sort_results[0].msg_out, sort_results[0].perf_out))
+  sys.exit(ret_status)
+               

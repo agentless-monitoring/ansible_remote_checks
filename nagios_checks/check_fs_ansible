@@ -1,0 +1,165 @@
+#!/usr/bin/python2
+
+import math
+import sys 
+import argparse
+import re
+from ansible_remote_checks.runner import Runner
+
+def handle_unknown(message):                                                                                                                                                              
+  print("UNKNOWN - %s" % (message))                                                                                                                                                       
+  sys.exit(3)
+
+class ResultObject(object):
+  def __init__(self, filesystem):
+    self.filesystem = filesystem
+  def __str__(self):
+    return str(self.filesystem)
+  def __repr__(self):
+    return self.__str__()
+  def __lt__(self, other):
+    if self.crit < other.crit:
+      return False
+    elif self.crit == other.crit and self.free_space >= other.free_space:
+      return False
+    else:
+      return True 
+
+def SizeString(size_str):
+  size_name = ("B", "KB", "MB", "GB", "TB")
+  try:
+    (size, unit) = re.match(r"(\d+)(.*)", size_str).groups()
+    i = size_name.index(unit)
+  except:
+    raise argparse.ArgumentTypeError("Not in the required format")
+  p = math.pow(1024,i)
+  s = float(size)*p
+  return int(s)
+
+def convert_size(size, unit=None):
+  if unit == "B" or int(size) == 0:
+    return (str(int(size)), "B")
+  size_name = ("B", "KB", "MB", "GB", "TB")
+  if unit == None:
+    i = int(math.floor(math.log(size,1024)))
+  else:
+    i = size_name.index(unit)
+  p = math.pow(1024,i)
+  s = round(size/p,2)
+  return (str(s), size_name[i])
+
+if __name__ == '__main__':
+
+  parser = argparse.ArgumentParser(description='check-runner')
+  parser.add_argument('-H', '--host', help="API Host", type=str, required=True)
+  parser.add_argument('-F', '--filesystem', help="Regular Expression to filter file systems", type=str, required=False)
+  parser.add_argument('-W', '--warning', help='Warning level (default: 2GB)', type=SizeString, default="2GB")
+  parser.add_argument('-C', '--critical', help='Critical level (default: 500MB)', type=SizeString, default="500MB")
+  parser.add_argument('-u', '--unit', help="Display Units", choices=("B", "KB", "MB", "GB", "TB"))
+  parser.add_argument('-U', '--user', help='Ansible User', type=str, required=False)
+  parser.add_argument('-K', '--keyfile', help='Path to private key file', type=str, required=False)
+
+  args = parser.parse_args()
+
+  host = args.host
+  warning = args.warning
+  critical = args.critical
+  filesystem =  args.filesystem
+  unit = args.unit
+  
+  if args.user != None and args.keyfile != None:
+    runner_args = (host, args.user, args.keyfile)
+  elif args.user != None:
+    runner_args = (host, args.user)
+  elif args.keyfile != None:
+    runner_args = (host, 'icinga-check', args.keyfile)
+  else:
+    runner_args = (host, 'icinga-check')
+
+  try:
+    runner = Runner(*runner_args)
+    arguments = {'filesystem': filesystem}
+    result=runner.run_play('check_fs', arguments) 
+  except Exception as ex:
+    handle_unknown(str(ex))
+
+  status = result.get('ansible_status', '')
+  if status != 'ok':
+    handle_unknown(result)
+  
+  filesystems = result.get(host).get("file_systems")
+ 
+  if not filesystems:
+    handle_unknown("Filesystem %s not found" % (filesystem))
+  
+  results = []
+  ret_status = 0
+  
+  for filesystem in filesystems:
+
+    result = ResultObject(filesystem)
+    fs = filesystems.get(filesystem)
+
+    skipped_info = fs.get("skipped")
+  
+    if skipped_info:
+      status = "CRITICAL"
+      ret_status = 2
+      result.crit = 2
+      result.free_space = 0 
+      message = "%s for filesystem %s - %s" % (status, filesystem, skipped_info)
+      result.msg_out = message
+      result.perf_out = ""
+      results.append(result)
+      continue
+       
+    used_percent = fs.get("used_percent")
+    free_byte= fs.get("free_byte")
+    total_byte = int(fs.get("total_byte"))
+   
+    used_space = total_byte - free_byte
+    warn_space = total_byte - args.warning
+    crit_space = total_byte - args.critical
+
+
+    # Fallback - if the thresholds are larger than total_space we use 10% and 5% as threshold
+    if warn_space < 0 or crit_space < 0:
+      warn_space = total_byte * 0.90
+      crit_space = total_byte * 0.95
+
+    #Determine status
+    if used_space >= crit_space:
+      status = "CRITICAL"
+      ret_status = 2
+      result.crit = 2
+    elif used_space >= warn_space:
+      status = "WARNING"
+      if ret_status != 2:
+        ret_status = 1
+      result.crit = 1
+    else:
+      status = "OK"
+      result.crit= 0
+ 
+    (human_free, unit) = convert_size(free_byte, args.unit)
+
+    # Build human readable message
+    message = "%s for filesystem %s - free space: %s%s" % (status, filesystem, human_free, unit)
+    result.msg_out = message
+
+    # Build  perf data 
+    perfdata = "'filesystem %s'=%s%s;%s;%s;0;%s" % (filesystem, used_space, 'B', warn_space, crit_space, total_byte)
+    result.perf_out = perfdata
+    result.free_space = free_byte
+    results.append(result)
+
+  sort_results = sorted(results)
+  if len(sort_results) > 1:
+    perfs=map(lambda x: x.perf_out, sort_results)
+    msgs=map(lambda x: x.msg_out, sort_results)
+    print("%s | %s\n%s" % (msgs[0], reduce(lambda x1, x2: x1+" "+x2, perfs), reduce(lambda x1, x2: x1+"\n"+x2, msgs[1:])))
+  else:
+    print("%s | %s" % (sort_results[0].msg_out, sort_results[0].perf_out))
+
+  sys.exit(ret_status)
+              
