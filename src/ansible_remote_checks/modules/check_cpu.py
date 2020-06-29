@@ -3,9 +3,10 @@
 import time
 import subprocess
 from ansible.module_utils.basic import AnsibleModule
+import io
 
 def get_proc_stat():
-  f = file("/proc/stat", "r")
+  f = open("/proc/stat", "r")
   l = f.readline().split()[1:5]
   f.close()
   for i in range(len(l)):
