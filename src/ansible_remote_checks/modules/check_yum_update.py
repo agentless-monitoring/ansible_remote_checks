@@ -13,6 +13,12 @@ def get_update_info(module):
   process = subprocess.Popen(cmd, stdout=subprocess.PIPE, env=sudo_env)
   output, error = process.communicate()
 
+  # Python3 reads the output as byte and needs decoding
+  try:
+    output = output.decode()
+  except (UnicodeDecodeError, AttributeError):
+    pass
+
   lines = output.splitlines()
   return_code = process.returncode
 

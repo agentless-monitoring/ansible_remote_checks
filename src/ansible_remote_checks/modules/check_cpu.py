@@ -18,6 +18,12 @@ def get_top_most_cpu_procs():
   process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
   output, error = process.communicate()
 
+  # Python3 reads the output as byte and needs decoding
+  try:
+    output = output.decode()
+  except (UnicodeDecodeError, AttributeError):
+    pass
+
   return output.splitlines()
 
 

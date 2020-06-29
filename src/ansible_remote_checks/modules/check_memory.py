@@ -33,13 +33,22 @@ def get_memory_info(memory=False, swap=False, max_number_processes=10):
   return ret
 
 def get_top_most_mem_procs(max_number):
+  # Exeute  ps -hax -k -rss -o "comm rss pid args" to get sorted processes list 
   cmd=["ps", "-hax",  "-k" "-rss", "-o", "comm rss pid args"]
   ps_cmd = subprocess.Popen(cmd, stdout=subprocess.PIPE)
   output, error = ps_cmd.communicate()
 
+
+  # Python3 reads the output as byte and needs decoding
+  try:
+    output = output.decode()
+  except (UnicodeDecodeError, AttributeError):
+    pass
+
   processes = []
 
   for ps_line in  output.splitlines()[:max_number]:
+    # Split the lines and assign to variables
     (name, rss, pid, args) = re.split("\s+", ps_line, 3)
     processes.append({"name": name, "pid": pid, "rss": rss, "cmdline": args})
 
@@ -64,7 +73,7 @@ def main():
   try:
     result = dict(meminfo = get_memory_info(memory, swap, max_number_processes))
   except Exception as ex:
-    module.fail_json(msg=str(ex))
+    module.fail_json(msg=ex)
   
   module.exit_json(**result)
 

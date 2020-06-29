@@ -11,6 +11,12 @@ def get_procs(process_regex, cmdline_regex):
   lines = output.splitlines()
   processes = []
 
+  # Python3 reads the output as byte and needs decoding
+  try:
+    output = output.decode()
+  except (UnicodeDecodeError, AttributeError):
+    pass
+
   for line in lines:
     process = line.split()[0]
     cmdline = ' '.join(line.split()[2:])

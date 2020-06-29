@@ -12,6 +12,12 @@ def get_sg_info():
   output, error = process.communicate()
   returncode = process.returncode
 
+   # Python3 reads the output as byte and needs decoding
+  try:
+    output = output.decode()
+  except (UnicodeDecodeError, AttributeError):
+    pass
+
   result = {}
   result['output'] = {}
   result['output']['packages'] = {}
