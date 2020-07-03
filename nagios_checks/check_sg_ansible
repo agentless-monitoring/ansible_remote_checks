@@ -66,6 +66,7 @@ if __name__ == '__main__':
   details['packages_warning'] = []
   details['nodes'] = {}
 
+  # Handle Cluster Mode - Check if cluster is up and what is the primary node
   if sg_cluster:
     cluster = output.get('cluster') 
     ret_status = 2
@@ -83,7 +84,8 @@ if __name__ == '__main__':
       sg_status = cluster.get('status')
       state = cluster.get('state', 'unknown state')      
       output_message = "Service Guard Cluster %s - Cluster %s with primary node %s in status %s (%s)" % (status, name, coordinator, sg_status, state)
-                                                                                                                                                             
+
+  # Handle Package Mode - Check if package is up and also check for autorun and maintenance state (warning)
   elif sg_package:
     packages = output.get('packages')
     
@@ -134,20 +136,24 @@ if __name__ == '__main__':
           if not details['nodes'].get(sg_node):
             details['nodes'][sg_node] = []
          
+          switching_state = package_node.get('switching', 'not configured')
+          sg_status = package_node.get('status', 'sg_status unknown')
+          state = package_node.get('state', 'state unknown')
+          switching = "switching %s" % (switching_state)
+          # also available: last_run_time, last_halt_time, last_halt_failed, type, order
+      
           #check if node is configured
           if not package_node: 
             ret_status = 2
             status = "CRITICAL"
-          elif package_node.get('switching') != 'enabled':
+
+          elif switching_state != 'enabled':
             if ret_status != 2: 
               ret_status = 1
               status = 'WARNING'
-          else: 
-            sg_status = package_node.get('status')
-            state = package_node.get('state', 'state unknown')
-            switching = "switching %s" % (package_node.get('switching', 'not configured'))
-            #also available: last_run_time, last_halt_time, last_halt_failed, type, order
-            details['nodes'][sg_node].append("%s with service guard status %s (%s) and %s" % (name, sg_status, state, switching))
+              switching = "<b>%s</b>" % switching
+                    
+          details['nodes'][sg_node].append("%s with service guard status %s (%s) and %s" % (name, sg_status, state, switching))
 
     if ret_status == 0:
       status = 'OK'
@@ -160,6 +166,7 @@ if __name__ == '__main__':
 
     output_message = "Service Guard Package %s - %s package(s) down, %s packages in warning state" % (status, len(details['packages_down']), len(details['packages_warning']))
   
+  # Handle Node Mode - Check if Node is up
   elif sg_node:
     nodes = output.get('nodes')
 
