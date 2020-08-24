@@ -7,11 +7,17 @@ from ansible.module_utils.basic import AnsibleModule
 def get_fs_usage(filesystem):
   with open('/etc/mtab', 'r') as mtab:
     ret = {}
-    for mnt in [l.split() for l in mtab.readlines()]:
+    seen = {}
+    for mnt in [l.split() for l in  mtab.readlines()]:
+      #  With bind mounts, prefer items nearer the root of the source
+      if mnt[0] not in seen or len(mnt[1]) < len(seen[mnt[0]]):
+        seen[mnt[0]] = mnt[1]
+
+    for key,value in seen.items():
       stat = {}
-      if (filesystem and re.match(r"%s" % filesystem, mnt[1])) or (not filesystem and (mnt[0].startswith('/dev/sd') or mnt[0].startswith('/dev/mapper') or mnt[0].startswith('/dev/md'))):
+      if (filesystem and re.match(r"%s" % filesystem, value)) or (not filesystem and (key.startswith('/dev/sd') or key.startswith('/dev/mapper') or key.startswith('/dev/md'))):
         try:
-          stat = os.statvfs(mnt[1])
+          stat = os.statvfs(value)
           total_byte = stat.f_blocks * stat.f_frsize
           free_byte = stat.f_bavail * stat.f_frsize
           used_percent = 0
@@ -20,14 +26,14 @@ def get_fs_usage(filesystem):
             used_percent = int(round((1 - float(stat.f_bavail) / float(stat.f_blocks)) * 100))            
          
           mount_flags = stat.f_flag
-          ret[mnt[1]] = {
+          ret[value] = {
             "total_byte": total_byte,
             "free_byte": free_byte,
             "used_percent": used_percent,
             "mount_flags" : mount_flags
             }
         except Exception as e:
-          ret[mnt[1]] = {
+          ret[value] = {
             "total_byte" : 0,
             "free_byte" : 0,
             "used_percent" : 0,
