@@ -34,7 +34,7 @@ def get_memory_info(memory=False, swap=False, max_number_processes=10):
 
 def get_top_most_mem_procs(max_number):
   # Exeute  ps -hax -k -rss -o "comm rss pid args" to get sorted processes list 
-  cmd=["ps", "-hax",  "-k" "-rss", "-o", "comm rss pid args"]
+  cmd=["ps", "-hax",  "-k" "-rss", "-o", "comm:15 rss pid args"]
   ps_cmd = subprocess.Popen(cmd, stdout=subprocess.PIPE)
   output, error = ps_cmd.communicate()
 
@@ -48,8 +48,10 @@ def get_top_most_mem_procs(max_number):
   processes = []
 
   for ps_line in  output.splitlines()[:max_number]:
-    # Split the lines and assign to variables
-    (name, rss, pid, args) = re.split("\s+", ps_line, 3)
+    # Split the lines and assign to variables (comm has a limit set to 16 chars - 1 for c string ending)
+    splitted_line_without_comm  =  re.split("\s+", ps_line[16:], 2)
+    splitted_line_without_comm.insert(0,ps_line[0:15])
+    (name, rss, pid, args) = splitted_line_without_comm
     processes.append({"name": name, "pid": pid, "rss": rss, "cmdline": args})
 
   return processes
