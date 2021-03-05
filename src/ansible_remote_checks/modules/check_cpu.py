@@ -3,9 +3,10 @@
 import time
 import subprocess
 from ansible.module_utils.basic import AnsibleModule
+import io
 
 def get_proc_stat():
-  f = file("/proc/stat", "r")
+  f = open("/proc/stat", "r")
   l = f.readline().split()[1:5]
   f.close()
   for i in range(len(l)):
@@ -16,6 +17,12 @@ def get_top_most_cpu_procs():
   cmd=["ps","-hax","-k","-%cpu","-o","comm %cpu pid args"]
   process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
   output, error = process.communicate()
+
+  # Python3 reads the output as byte and needs decoding
+  try:
+    output = output.decode()
+  except (UnicodeDecodeError, AttributeError):
+    pass
 
   return output.splitlines()
 

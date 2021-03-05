@@ -100,7 +100,7 @@ if __name__ == '__main__':
   result.msg_out = message
 
   # Build perf data 
-  perfdata = "swap=%s%s;%s;%s;0;%s" % (used_swap, 'KB', warn_swap, crit_swap, swapFree)
+  perfdata = "swap=%s%s;%s;%s;0;%s" % (used_swap, 'KB', warn_swap, crit_swap, swapTotal)
   result.perf_out = perfdata
 
   results.append(result)

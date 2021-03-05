@@ -56,7 +56,10 @@ if __name__ == '__main__':
   processes = cpu_used.get("processes")
  
   #Determine status
-  if used >= critical:
+  if critical == 0:
+    status = "OK"
+    ret_status = 0
+  elif used >= critical:
     status = "CRITICAL"
     ret_status = 2
   elif used >= warning:
@@ -78,7 +81,7 @@ if __name__ == '__main__':
   print(output_message)
 
   # In case of warning and critical print the top most processes
-  if ret_status in [1, 2]:
+  if used >= warning:
     for proc in processes:
       cols = proc.split()
       print("Process: %s - %s%% (PID %s: %s)" % (cols[0], cols[1], cols[2], cols[3]))
