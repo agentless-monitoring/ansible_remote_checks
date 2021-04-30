@@ -1,5 +1,6 @@
 #!/usr/bin/python2
 
+import re
 import sys
 import argparse
 from ansible_remote_checks.runner import Runner
@@ -14,11 +15,13 @@ if __name__ == '__main__':
   parser.add_argument('-S', '--servicename', help="Servicename", type=str, required=False)
   parser.add_argument('-U', '--user', help='Ansible User', type=str, required=False)
   parser.add_argument('-K', '--keyfile', help='Path to private key file', type=str, required=False)
+  parser.add_argument('-R', '--regex', help="Regex for names", type=str, default='.*')
 
   args = parser.parse_args()
 
   host = args.host
   servicename = args.servicename
+  regex = args.regex
  
   if args.user != None and args.keyfile != None:
     runner_args = (host, args.user, args.keyfile)
@@ -56,6 +59,10 @@ if __name__ == '__main__':
   current_status = "OK"
 
   for servicename in serviceinfo:
+
+    if not re.match(regex, servicename):
+      continue
+
     service = serviceinfo.get(servicename)
     service_status = service.get('status')
     service_message = service.get('message')
@@ -74,9 +81,10 @@ if __name__ == '__main__':
         status = "WARNING"   
 
     services[service_message[0]].append("%s for service %s - service in state %s" % (current_status, servicename, service_message[0]))
-   
+  
+
   human_message = ""
-  for key, value in services.iteritems():
+  for key, value in services.items():
     if human_message:
       human_message = human_message + ", "
    
@@ -86,9 +94,9 @@ if __name__ == '__main__':
     output_message = "Service %s - %s" % (status, human_message)
     print(output_message)
   else:
-    print("Service %s" % status)
+    print("Service %s - No service in failed state" % status)
 
-  for key, value in services.iteritems():
+  for key, value in services.items():
     for service_message in value:
       print(service_message)
   
