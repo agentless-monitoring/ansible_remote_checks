@@ -1,4 +1,4 @@
-#!/usr/bin/python2
+#!/usr/bin/python2 -s
 
 import sys 
 import argparse
@@ -16,13 +16,15 @@ if __name__ == '__main__':
   parser.add_argument('-C', '--critical', help='Critical level (default: 90) in %%', type=int, default=90)
   parser.add_argument('-U', '--user', help='Ansible User', type=str, required=False)
   parser.add_argument('-K', '--keyfile', help='Path to private key file', type=str, required=False)
+  parser.add_argument('-S', '--suppress-process-details', help='Suppress process details printing', action='store_true')
 
   args = parser.parse_args()
 
   host = args.host
   warning = args.warning
   critical = args.critical
- 
+  suppress_process_details = args.suppress_process_details
+
   if args.user != None and args.keyfile != None:
     runner_args = (host, args.user, args.keyfile)
   elif args.user != None:
@@ -81,7 +83,7 @@ if __name__ == '__main__':
   print(output_message)
 
   # In case of warning and critical print the top most processes
-  if used >= warning:
+  if used >= warning and not suppress_process_details:
     for proc in processes:
       cols = proc.split()
       print("Process: %s - %s%% (PID %s: %s)" % (cols[0], cols[1], cols[2], cols[3]))

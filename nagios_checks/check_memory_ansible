@@ -1,4 +1,4 @@
-#!/usr/bin/python2
+#!/usr/bin/python2 -s
 import math
 import sys 
 import argparse
@@ -43,12 +43,14 @@ if __name__ == '__main__':
   parser.add_argument('-C', '--critical', help='Critical level (default: 90) in %%', type=int, default=90)
   parser.add_argument('-U', '--user', help='Ansible User', type=str, required=False)
   parser.add_argument('-K', '--keyfile', help='Path to private key file', type=str, required=False)
+  parser.add_argument('-S', '--suppress-process-details', help='Suppress process details printing', action='store_true')
 
   args = parser.parse_args()
 
   host = args.host
   warning = args.warning
   critical = args.critical
+  suppress_process_details = args.suppress_process_details
 
   if args.user != None and args.keyfile != None:
     runner_args = (host, args.user, args.keyfile)
@@ -146,7 +148,7 @@ if __name__ == '__main__':
   processes  =  meminfo.get("processes")
   
   # In case of warning and critical print the top most processes
-  if ret_status in [1, 2]:
+  if ret_status in [1, 2] and not suppress_process_details:
     for proc in processes:
       (size, unit) = convert_size_auto(int(proc["rss"]))
       print("Process: %s - %s %s (PID %s: %s)" % (proc["name"], size, unit, proc["pid"], proc["cmdline"]))
