@@ -150,8 +150,10 @@ if __name__ == '__main__':
   # In case of warning and critical print the top most processes
   if ret_status in [1, 2] and not suppress_process_details:
     for proc in processes:
-      (size, unit) = convert_size_auto(int(proc["rss"]))
-      print("Process: %s - %s %s (PID %s: %s)" % (proc["name"], size, unit, proc["pid"], proc["cmdline"]))
+      rss = proc["rss"]
+      if rss.isnumeric():
+        (size, unit) = convert_size_auto(int(rss))
+        print("Process: %s - %s %s (PID %s: %s)" % (proc["name"], size, unit, proc["pid"], proc["cmdline"]))
 
   sys.exit(ret_status)
                
