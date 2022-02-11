@@ -1,0 +1,75 @@
+#!/usr/bin/env python2
+
+import sys 
+import argparse
+from ansible_remote_checks.runner import Runner
+
+def handle_unknown(message):
+  print("UNKNOWN - %s" % (message))    
+  sys.exit(3)
+
+if __name__ == '__main__':
+
+  parser = argparse.ArgumentParser(description='check-cpu')
+  parser.add_argument('-H', '--host', help="API Host", type=str, required=True)
+  parser.add_argument('-m', '--min-age', help="Min Age of files (Default: 5min)", type=int, required=False, default=5)
+  parser.add_argument('-P', '--path', help="Path to check for files", type=str, required=True)
+  parser.add_argument('-W', '--warning', help='Warning level for file count (Default: 10)', type=int, default=10)
+  parser.add_argument('-C', '--critical', help='Critical level for file count (Default: 20)', type=int, default=20)
+  parser.add_argument('-U', '--user', help='Ansible User', type=str, required=False)
+  parser.add_argument('-K', '--keyfile', help='Path to private key file', type=str, required=False)
+
+  args = parser.parse_args()
+
+  host = args.host
+  warning = args.warning
+  critical = args.critical
+  path = args.path
+  min_age=args.min_age
+
+  if args.user != None and args.keyfile != None:
+    runner_args = (host, args.user, args.keyfile)
+  elif args.user != None:
+    runner_args = (host, args.user)
+  elif args.keyfile != None:
+    runner_args = (host, 'icinga-check', args.keyfile)
+  else:
+    runner_args = (host, 'icinga-check')
+
+  try:
+    runner = Runner(*runner_args)
+    result = runner.run_play('check_file_count', {"path": path, "min_age": min_age})
+
+  except Exception as ex:
+    handle_unknown(str(ex)) 
+
+  status = result.get('ansible_status', '')
+  if status != 'ok':
+    handle_unknown(result)
+ 
+  file_count = result.get(host).get("file_count")
+
+  if file_count >= critical:
+    status = "CRITICAL"
+    ret_status = 2
+  elif file_count >= warning:
+    status = "WARNING"
+    ret_status = 1
+  else:
+    status = "OK"
+    ret_status = 0
+  
+  # Build human readable message
+  message = "In path %s there are %d files" % (path, file_count)
+
+  if min_age > 0:
+    message = message + " older than %d minutes" % min_age
+ 
+  # Build  perf data 
+  perfdata = "file_count=%s;%s;%s;0;100" % (file_count, warning, critical)
+
+  output_message = 'FILE COUNT %s - %s | %s' % (status, message, perfdata)
+ 
+  print(output_message)
+
+  sys.exit(ret_status)
