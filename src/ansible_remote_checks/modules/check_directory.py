@@ -8,6 +8,9 @@ def get_directory_info(path, recursive=False, file_regex='.*'):
 
   result = []
 
+  if os.path.exists(path) is False:
+    raise Exception("Path %s does not exist!" % path)
+
   for root, d_names, f_names in os.walk(path):
     if not recursive:
       for file_name in f_names:
@@ -43,9 +46,8 @@ def main():
   file_regex = module.params['regex']
   recursive = module.params['recursive']
 
-  fileinfo = get_directory_info(path, recursive, file_regex)
-  
   try:
+    fileinfo = get_directory_info(path, recursive, file_regex)
     result = dict(fileinfo=fileinfo)
   except Exception as ex:
     module.fail_json(msg=str(ex))
