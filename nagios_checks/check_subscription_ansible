@@ -1,0 +1,64 @@
+#!/usr/bin/python
+
+import math
+import sys
+import argparse
+from ansible_remote_checks.runner import Runner
+
+def handle_unknown(message):                                                                                                                                                              
+  print("UNKNOWN - %s" % (message))                                                                                                                                                       
+  sys.exit(3) 
+
+if __name__ == '__main__':
+  parser = argparse.ArgumentParser(description='Linux Updatee checker')
+  parser.add_argument('-H', '--host', help="Hostname to check", type=str, required=True)
+  parser.add_argument('-U', '--user', help='Ansible User', type=str, required=False)
+  parser.add_argument('-K', '--keyfile', help='Path to private key file', type=str, required=False)
+
+  args = parser.parse_args()
+  host = args.host
+  warning = args.warning
+   
+  if args.user != None and args.keyfile != None:
+    runner_args = (host, args.user, args.keyfile)
+  elif args.user != None:
+    runner_args = (host, args.user)
+  elif args.keyfile != None:
+    runner_args = (host, 'icinga-check', args.keyfile)
+  else:
+    runner_args = (host, 'icinga-check')
+
+  try:
+    runner = Runner(*runner_args)
+    result = runner.run_play('check_subscription', dict())
+  
+  except Exception as ex:
+    handle_unknown(str(ex))
+
+  status = result.get('ansible_status', '')
+  if status != 'ok':
+    handle_unknown(result) 
+
+  hostinfo = result.get(host)
+  subscription_info = hostinfo.get("subscription")
+
+  ret_status = 0
+  status = "OK"
+  
+  if not subscription_info:
+    print("UNKNOWN - No subscription info") 
+    sys.exit(3) 
+
+  output = subscription_info.get("output")
+  return_code =  subscription_info.get("return_code")
+
+  if(return_code == 0):
+    print("OK - System is subscribed")
+    ret_status = 0
+  elif(return_code != 0):
+    print("CIRTICAL - System is not subscribed")
+    ret_status = 2
+
+  print("output")
+  sys.exit(ret_status)
+
