@@ -52,7 +52,7 @@ if __name__ == '__main__':
     print("OK - System is subscribed")
     sys.exit(0)
   elif(return_code != 0):
-    print("CIRTICAL - System is not subscribed")
+    print("CRITICAL - System is not subscribed")
     print(output)
     sys.exit(2)
   else:
