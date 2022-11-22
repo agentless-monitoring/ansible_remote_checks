@@ -40,9 +40,6 @@ if __name__ == '__main__':
 
   hostinfo = result.get(host)
   subscription_info = hostinfo.get("subscription")
-
-  ret_status = 0
-  status = "OK"
   
   if not subscription_info:
     print("UNKNOWN - No subscription info") 
@@ -53,11 +50,12 @@ if __name__ == '__main__':
 
   if(return_code == 0):
     print("OK - System is subscribed")
-    ret_status = 0
+    sys.exit(0)
   elif(return_code != 0):
     print("CIRTICAL - System is not subscribed")
-    ret_status = 2
-
-  print(output)
-  sys.exit(ret_status)
+    print(output)
+    sys.exit(2)
+  else:
+    print(("UNKNOWN - No subscription info")
+    sys.exit(3)  
 
