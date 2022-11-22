@@ -58,6 +58,6 @@ if __name__ == '__main__':
     print("CIRTICAL - System is not subscribed")
     ret_status = 2
 
-  print("output")
+  print(output)
   sys.exit(ret_status)
 
