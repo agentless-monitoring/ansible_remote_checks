@@ -6,7 +6,7 @@ from ansible.module_utils.basic import AnsibleModule
 
 def get_subscription_info(module):
   
-  cmd = ["sudo", "-A","yum", "check-update"]
+  cmd = ["sudo", "-A","subscription-manager", "status"]
   
   sudo_env = os.environ.copy()
   sudo_env["SUDO_ASKPASS"]="/bin/false"
