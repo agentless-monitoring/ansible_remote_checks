@@ -33,7 +33,8 @@ setup(
     'nagios_checks/check_load_ansible',
     'nagios_checks/check_sg_ansible',
     'nagios_checks/check_process_ansible',
-    'nagios_checks/check_directory_ansible'
+    'nagios_checks/check_directory_ansible',
+    'nagios_checks/check_file_count_ansible',
     'nagios_checks/check_subscription_ansible'
   ]
 )
