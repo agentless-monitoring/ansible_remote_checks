@@ -51,7 +51,8 @@ if __name__ == '__main__':
   if(return_code == 0):
     print("OK - System is subscribed")
     sys.exit(0)
-  elif(return_code != 0):
+  # No output if sudo rule not applied and module fails to gather information  
+  elif(return_code != 0 and output):
     print("CRITICAL - System is not subscribed")
     print(output)
     sys.exit(2)
