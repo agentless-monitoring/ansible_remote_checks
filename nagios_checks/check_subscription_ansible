@@ -17,7 +17,6 @@ if __name__ == '__main__':
 
   args = parser.parse_args()
   host = args.host
-  warning = args.warning
    
   if args.user != None and args.keyfile != None:
     runner_args = (host, args.user, args.keyfile)
