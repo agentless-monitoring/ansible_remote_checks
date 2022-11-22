@@ -21,9 +21,6 @@ def get_subscription_info(module):
 
   return_code = process.returncode
 
-  if (return_code == 1):
-    module.fail_json(msg='sudo/subscription-manager status failed. stdout: %s stderr: %s' % (output, error))
-  
   return {'output': output, 'return_code': return_code }
 
 def main():
