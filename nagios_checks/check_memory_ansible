@@ -1,4 +1,5 @@
-#!/usr/bin/python2 -s
+#!/usr/bin/python
+
 import math
 import sys 
 import argparse

@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
   name='ansible_remote_checks',
-  version='0.1.2',
+  version='0.1.3',
   description='Library for Nagios checks on linux systems',
   author='Alexander Lex, David Voit, Christian Zuegner',
   author_email='Alexander.Lex@osram-os.com, David.Voit@osram-os.com, Christian.Zuegner@osram-os.com',
@@ -33,7 +33,9 @@ setup(
     'nagios_checks/check_load_ansible',
     'nagios_checks/check_sg_ansible',
     'nagios_checks/check_process_ansible',
-    'nagios_checks/check_directory_ansible'
+    'nagios_checks/check_directory_ansible',
+    'nagios_checks/check_file_count_ansible',
+    'nagios_checks/check_subscription_ansible'
   ]
 )
 
