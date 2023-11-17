@@ -51,6 +51,7 @@ if __name__ == '__main__':
   parser.add_argument('-C', '--count', help="Count of matching processes allowed running", type=check_positive, default=1)
   parser.add_argument('-w', '--is-warning', help="Not running is a Warning not a Critical state", action='store_true', default=False)
   parser.add_argument('-d', '--debug', help="enable debug print", action='store_true')
+  parser.add_argument('-s', '--suppress-output', help="supress process output", action='store_true')
 
   args = parser.parse_args()
 
@@ -139,6 +140,7 @@ if __name__ == '__main__':
     if cmdline > 50 and ret_status == 0:
       cmdline = "%s [...]" % cmdline[:50]
 
-    print ("%s(%s): %s" % (columns[0], columns[1], cmdline) )
+    if not args.suppress_output:
+      print ("%s(%s): %s" % (columns[0], columns[1], cmdline) )
   
   sys.exit(ret_status)
