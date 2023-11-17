@@ -8,7 +8,7 @@ def get_procs(process_regex, cmdline_regex):
   cmd=["ps","-hax","-o","comm pid args"]
   process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
   output, error = process.communicate()
-  lines = output.splitlines()
+  
   processes = []
 
   # Python3 reads the output as byte and needs decoding
@@ -16,6 +16,8 @@ def get_procs(process_regex, cmdline_regex):
     output = output.decode()
   except (UnicodeDecodeError, AttributeError):
     pass
+
+  lines = output.splitlines()
 
   for line in lines:
     process = line.split()[0]
