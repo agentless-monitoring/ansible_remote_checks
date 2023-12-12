@@ -64,12 +64,15 @@ if __name__ == '__main__':
         grouped_updates[channel] = []  
       grouped_updates[channel].append([name, version])
       
-  if update_count >= warning:
+  if update_count > warning:
     if ret_status != 2:
       ret_status = 1
       status = "WARNING"   
+  else:
+    print("Update OK - No pending updates")
+    sys.exit(ret_status)
 
-  output_message = "Update %s - There are in total %s Updates waiting to be installed:\n" % (status, update_count)
+  output_message = "Update %s - There are in total %s update(s) waiting to be installed:\n" % (status, update_count)
   print(output_message)
   
   for group in grouped_updates:
