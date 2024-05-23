@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
   name='ansible_remote_checks',
-  version='0.1.3',
+  version='0.1.4',
   description='Library for Nagios checks on linux systems',
   author='Alexander Lex, David Voit, Christian Zuegner',
   author_email='Alexander.Lex@osram-os.com, David.Voit@osram-os.com, Christian.Zuegner@osram-os.com',
@@ -11,7 +11,7 @@ setup(
     'Development Status :: 4 - Beta',
     'Intended Audience :: Developers',
     'Topic :: System :: Monitoring',
-    'Programming Language :: Python :: 2',
+    'Programming Language :: Python :: 3',
   ],
 
   install_requires=[
