@@ -1,10 +1,11 @@
-Name:           python3.11-ansible-remote-checks
+%global modname ansible-remote-checks
+Name:           python3.11-%{modname}
 Version:        0.1.4
 Release:        1%{?dist}
 Summary:        Nagios checks for linux hosts executed agentless via ansible
 
 License:        MIT
-Source0:        ansible-remote-checks-%{version}.tar.gz
+Source0:        %{modname}-%{version}.tar.gz
 
 BuildArch:     noarch
 BuildRequires: python3.11-devel
@@ -24,7 +25,7 @@ Requires: %{name} = %{version}-%{release}
 Nagios checks ansible
 
 %prep
-%autosetup -n %{name}-%{version}
+%autosetup -n %{modname}-%{version}
 
 %build
 %py3_build
