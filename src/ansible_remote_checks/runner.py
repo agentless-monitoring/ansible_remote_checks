@@ -6,6 +6,7 @@ from ansible.vars.manager import VariableManager
 from ansible.inventory.manager import InventoryManager
 from ansible.module_utils.common.collections import ImmutableDict
 from ansible.playbook.play import Play
+from ansible.plugins.loader import init_plugin_loader
 from ansible.executor.task_queue_manager import TaskQueueManager
 from ansible.plugins.callback import CallbackBase
 import ansible.constants as C
@@ -41,9 +42,8 @@ class ResultCallback(CallbackBase):
   
 
 class Runner():
-
   def __init__(self, host, remote_user='icinga-check', private_key_file=None):
-   
+    init_plugin_loader()
     self.host=host
     sources = '%s,' % (host)
     
@@ -65,8 +65,7 @@ class Runner():
     self.inventory = InventoryManager(loader=self.loader, sources=sources)
     self.variable_manager = VariableManager(loader =self.loader, inventory=self.inventory)
 
-  def run_play(self, module , args=dict(), playname="Ansible Remote Icinga Check"):
-    
+  def run_play(self, module , args=dict(), playname="Ansible Remote Icinga Check"):    
     play_source = dict(
       name = playname,
       hosts = self.host,
