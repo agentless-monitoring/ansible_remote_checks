@@ -15,8 +15,6 @@ setup(
   ],
 
   install_requires=[
-    'ansible'
-    'argparse',
    ],
 
   packages=find_packages('src'),
