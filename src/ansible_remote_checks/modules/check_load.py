@@ -1,4 +1,4 @@
-#!/usr/bin/python2
+#!/usr/bin/python
 
 import os 
 from ansible.module_utils.basic import AnsibleModule
