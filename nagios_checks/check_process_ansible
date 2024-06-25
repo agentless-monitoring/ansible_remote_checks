@@ -137,7 +137,7 @@ if __name__ == '__main__':
     cmdline = ' '.join(columns[2:])
      
     #cut cmdline for  output
-    if cmdline > 50 and ret_status == 0:
+    if len(cmdline) > 50 and ret_status == 0:
       cmdline = "%s [...]" % cmdline[:50]
 
     if not args.suppress_output:
