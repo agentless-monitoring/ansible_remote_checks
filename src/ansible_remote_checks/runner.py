@@ -6,7 +6,6 @@ from ansible.vars.manager import VariableManager
 from ansible.inventory.manager import InventoryManager
 from ansible.module_utils.common.collections import ImmutableDict
 from ansible.playbook.play import Play
-from ansible.plugins.loader import init_plugin_loader
 from ansible.executor.task_queue_manager import TaskQueueManager
 from ansible.plugins.callback import CallbackBase
 import ansible.constants as C
@@ -15,6 +14,12 @@ from collections import namedtuple
 import os 
 from os.path import expanduser 
 import shutil
+
+try:
+  # ansible > 2.15 needs this function call
+  from ansible.plugins.loader import init_plugin_loader
+except ImportError:
+  init_plugin_loader=lambda:None
 
 class ResultCallback(CallbackBase):
   def v2_runner_on_ok(self, result, **kwargs):
