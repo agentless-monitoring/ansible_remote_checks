@@ -27,7 +27,7 @@ def get_service_info(servicename, module):
     output, error = process.communicate()
 
     # 91 == '[' -> This is a json output
-    if output[0] == 91:
+    if output != b'' and output[0] == 91:
       failed_json_out = json.loads(output)
       for json_status in failed_json_out:
         servicename = json_status['unit']
