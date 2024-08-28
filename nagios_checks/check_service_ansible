@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 import re
 import sys
@@ -67,8 +67,8 @@ if __name__ == '__main__':
     service_status = service.get('status')
     service_message = service.get('message')
 
-    if not services.get(service_message[0]):
-      services[service_message[0]]= []
+    if not services.get(service_message):
+      services[service_message]= []
          
     if service_status == 3:
       ret_status = 2
@@ -80,7 +80,7 @@ if __name__ == '__main__':
         ret_status = 1
         status = "WARNING"   
 
-    services[service_message[0]].append("%s for service %s - service in state %s" % (current_status, servicename, service_message[0]))
+    services[service_message].append("%s for service %s - service in state %s" % (current_status, servicename, service_message))
   
 
   human_message = ""
