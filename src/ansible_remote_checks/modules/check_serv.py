@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 import os
 import subprocess
@@ -31,7 +31,8 @@ def get_service_info(servicename, module):
       failed_json_out = json.loads(output)
       for json_status in failed_json_out:
         servicename = json_status['unit']
-        values['message'] = json_status["active"]
+        values['message'] = []
+        values['message'].append(json_status["active"])
         values['status'] = 3
         ret[servicename]= values
     # RHEL8 systems silently ignore "-o json" parse "human status" instead
