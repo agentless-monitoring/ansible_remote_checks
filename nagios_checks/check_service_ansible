@@ -68,8 +68,6 @@ def check_service():
     service_status = current_service.get('status')
     service_message = current_service.get('message')
 
-    print(service_message)
-
     #create an array for all "messages" (states)
     if not result.get(service_message[0]):
       result[service_message[0]]= []
