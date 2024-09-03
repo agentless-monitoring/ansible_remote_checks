@@ -3,13 +3,14 @@
 import re
 import sys
 import argparse
+import traceback
 from ansible_remote_checks.runner import Runner
 
 def handle_unknown(message):                                                                                                                                                              
   print("UNKNOWN - %s" % (message))                                                                                                                                                       
   sys.exit(3) 
 
-if __name__ == '__main__':
+def check_service():
   parser = argparse.ArgumentParser(description='Linux Service checker')
   parser.add_argument('-H', '--host', help="Hostname to check", type=str, required=True)
   parser.add_argument('-S', '--servicename', help="Servicename", type=str, required=False)
@@ -45,30 +46,33 @@ if __name__ == '__main__':
     handle_unknown(result)
 
   hostinfo = result.get(host)
-  serviceinfo = hostinfo.get("serviceinfo")
+  services = hostinfo.get("serviceinfo")
  
   ret_status = 0
   status = "OK"
   
   # if service was specified but no info for failed service was gathered
-  if servicename and not serviceinfo:
+  if servicename and not services:
     print("Service OK - No service in failed state") 
     sys.exit(ret_status) 
 
-  services = {}
+  result = {}
   current_status = "OK"
 
-  for servicename in serviceinfo:
+  for service in services:
 
-    if not re.match(regex, servicename):
+    if not re.match(regex, service):
       continue
 
-    service = serviceinfo.get(servicename)
-    service_status = service.get('status')
-    service_message = service.get('message')
+    current_service = services.get(service)
+    service_status = current_service.get('status')
+    service_message = current_service.get('message')
 
-    if not services.get(service_message):
-      services[service_message]= []
+    print(service_message)
+
+    #create an array for all "messages" (states)
+    if not result.get(service_message[0]):
+      result[service_message[0]]= []
          
     if service_status == 3:
       ret_status = 2
@@ -80,11 +84,11 @@ if __name__ == '__main__':
         ret_status = 1
         status = "WARNING"   
 
-    services[service_message].append("%s for service %s - service in state %s" % (current_status, servicename, service_message))
-  
+    # pre sort messages by state
+    result[service_message[0]].append("%s for service %s - service in state %s" % (current_status, service, service_message[0]))
 
   human_message = ""
-  for key, value in services.items():
+  for key, value in result.items():
     if human_message:
       human_message = human_message + ", "
    
@@ -96,9 +100,17 @@ if __name__ == '__main__':
   else:
     print("Service %s - No service in failed state" % status)
 
-  for key, value in services.items():
-    for service_message in value:
-      print(service_message)
+  for key, value in result.items():
+    for message in value:
+      print(message)
   
   sys.exit(ret_status)
+
+if __name__ == '__main__':
+  try:
+    check_service()
+  except Exception as ex:
+    print("UNKNOWN: An unknown error occured. %s" % ex)
+    print(traceback.format_exc())
+    sys.exit(3)
 
