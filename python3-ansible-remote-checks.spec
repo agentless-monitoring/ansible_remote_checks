@@ -6,8 +6,8 @@
 %define python_version python3.11
 %endif
 Name:           %{python_version}-%{modname}
-Version:        0.1.9
-Release:        0%{?dist}
+Version:        0.1.10
+Release:        2%{?dist}
 Summary:        Nagios checks for linux hosts executed agentless via ansible
 
 License:        MIT
