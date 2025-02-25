@@ -5,6 +5,16 @@ import subprocess
 import re
 from ansible.module_utils.basic import AnsibleModule
 
+# multiline handling 
+# if a package name exceeds 25 chars
+# and the rest of the line does not contain alpha numerical chars 
+# there will be a line break
+def is_multiline(line):
+  if len(line) >= 25 and not any(char.isalpha() for char in line[25:]):
+    return True
+  else:
+    return False
+
 def get_update_info(module):
   
   cmd = ["sudo", "-A","yum", "check-update"]
@@ -20,7 +30,6 @@ def get_update_info(module):
   except (UnicodeDecodeError, AttributeError):
     pass
 
-
   updates = {}
   return_code = process.returncode
 
@@ -34,15 +43,40 @@ def get_update_info(module):
       
     #line should have three parts (name, version, channel)
     package_regex = "^([^\s]+)\s+([^\s]+)\s+([^\s]+)\s*$"
-    
-    for idx, line in enumerate(output.splitlines()):
+    skip_next = False
+    obsoleting_packages = False
+
+    splitted = output.splitlines()
+    for idx, line in enumerate(splitted):
+      if skip_next:
+        # skip multiple time for multi lines  
+        if not is_multiline(line):  
+          skip_next = False
+          
+        continue
+      
+      if is_multiline(line):
+        if idx < len(line) - 1:
+          next_line = splitted[idx + 1]
+          line = f"{line} {next_line}"
+          skip_next = True
+     
+      # specials like obsoleting packages and security info 
+      if line.startswith("Obsoleting Packages"):
+        obsoleting_packages = True   
+        continue
+      if obsoleting_packages:
+        skip_next = True 
+      if line.startswith("Security:"):
+        continue
+     
       package = re.match(package_regex, line)
       if package:
         first_match = True
         update_count += 1
         updates[update_count] = package.groups()
       elif first_match:
-        module.fail_json(msg='Cannot parse package in output! stdout: %s stderr: %s' % (output, error))
+        module.fail_json(msg='Cannot parse package in output! Line: %s, stdout: %s, stderr: %s' % (line, output, error))
 
     return updates
 
